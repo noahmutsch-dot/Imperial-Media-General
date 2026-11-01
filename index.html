@@ -1,0 +1,1791 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>PV Digitaler Zwilling</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#0b1117;
+    --panel:#111a24;
+    --panel-2:#0e1520;
+    --line:#243244;
+    --text:#dbe6f0;
+    --text-dim:#7a8ba0;
+    --accent:#3fa9f5;
+    --amber:#e0973f;
+    --module-frame:#c9d4de;
+    --cell-normal:#16202c;
+    --cell-grid:#26374a;
+    --s1:#e0973f;
+    --s2:#d9534f;
+    --s3:#7a1414;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    overscroll-behavior:none;}
+  body{display:flex;flex-direction:column;height:100dvh;}
+
+  header{padding:10px 14px 8px;border-bottom:1px solid var(--line);background:var(--panel-2);flex:0 0 auto;
+    display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap;}
+  .hdr-text{min-width:0;}
+  h1{font-size:15px;margin:0 0 2px;font-weight:600;letter-spacing:.2px;}
+  .sub{font-size:11.5px;color:var(--text-dim);margin:0;}
+  .hdr-btns{display:flex;gap:6px;flex:0 0 auto;}
+  #btnEditMode,#btnDashboard{flex:0 0 auto;white-space:nowrap;}
+  #btnEditMode.active{background:var(--amber);border-color:var(--amber);color:#241202;font-weight:600;}
+
+  .dashboard-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:50;
+    display:flex;align-items:center;justify-content:center;padding:20px;}
+  .dashboard-overlay.hidden{display:none;}
+  .dashboard-panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    max-width:520px;width:100%;max-height:80vh;display:flex;flex-direction:column;overflow:hidden;}
+  .dashboard-header{display:flex;align-items:center;justify-content:space-between;
+    padding:14px 16px;border-bottom:1px solid var(--line);}
+  .dashboard-header h2{font-size:15px;margin:0;color:var(--text);}
+  .dashboard-list{overflow-y:auto;padding:6px 16px 16px;}
+  .dash-row{display:flex;align-items:center;justify-content:space-between;gap:10px;
+    padding:10px 0;border-bottom:1px solid var(--line);}
+  .dash-row:last-child{border-bottom:none;}
+  .dash-name{font-size:13px;font-weight:600;color:var(--text);}
+  .dash-meta{font-size:11px;color:var(--text-dim);margin-top:2px;}
+  .dash-actions{display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end;}
+  .dash-actions button{font-size:11px;padding:6px 9px;}
+  .dim{color:var(--text-dim);font-size:12px;}
+  .modal-input{width:100%;background:var(--panel-2);border:1px solid var(--line);color:var(--text);
+    border-radius:6px;padding:9px 10px;font-size:14px;margin-top:2px;}
+  .modal-input:focus{outline:1px solid var(--accent);}
+
+  details.config{border-bottom:1px solid var(--line);background:var(--panel);flex:0 0 auto;}
+  details.config summary{list-style:none;cursor:pointer;padding:9px 14px;font-size:12.5px;color:var(--accent);
+    display:flex;align-items:center;justify-content:space-between;}
+  details.config summary::-webkit-details-marker{display:none;}
+  details.config summary .car{transition:transform .15s;}
+  details.config[open] summary .car{transform:rotate(90deg);}
+  .cfg-body{padding:4px 14px 14px;display:grid;grid-template-columns:1fr 1fr;gap:8px 10px;}
+  .cfg-full{grid-column:1/-1;}
+  .cfg-section-title{grid-column:1/-1;font-size:11px;color:var(--accent);text-transform:uppercase;
+    letter-spacing:.4px;margin-top:6px;border-top:1px solid var(--line);padding-top:10px;}
+  label{font-size:10.5px;color:var(--text-dim);display:block;margin-bottom:3px;}
+  input[type=text],input[type=number]{width:100%;background:var(--panel-2);border:1px solid var(--line);
+    color:var(--text);border-radius:6px;padding:7px 8px;font-size:13px;}
+  input:focus{outline:1px solid var(--accent);}
+  .checkline{grid-column:1/-1;display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-dim);}
+  .checkline input{width:16px;height:16px;}
+  .btnrow{grid-column:1/-1;display:flex;gap:8px;margin-top:2px;}
+  button{font-family:inherit;font-size:12.5px;border-radius:7px;border:1px solid var(--line);
+    background:var(--panel-2);color:var(--text);padding:8px 12px;cursor:pointer;}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#04121e;font-weight:600;}
+  button.warn{border-color:#7a1414;color:#f2a6a6;}
+  button:active{transform:scale(.97);}
+
+  main{flex:1 1 auto;position:relative;overflow:hidden;background:
+    radial-gradient(ellipse at 50% 0%, #101c28 0%, #0b1117 60%);}
+  canvas{display:block;touch-action:none;width:100%;height:100%;}
+
+  .zoomctl{position:absolute;right:10px;bottom:10px;display:flex;flex-direction:column;gap:6px;}
+  .zoomctl button{width:38px;height:38px;padding:0;font-size:18px;line-height:1;border-radius:9px;
+    background:rgba(17,26,36,.9);backdrop-filter:blur(4px);}
+
+  .editctl{position:absolute;left:10px;bottom:10px;right:56px;display:none;flex-direction:column;gap:6px;align-items:flex-start;}
+  .editctl.show{display:flex;}
+  .toolgroup{display:flex;gap:4px;flex-wrap:wrap;}
+  .editctl button.tool{background:rgba(17,26,36,.9);border-color:var(--line);color:var(--text);
+    padding:8px 9px;border-radius:8px;font-size:10.5px;backdrop-filter:blur(4px);white-space:nowrap;}
+  .editctl button.tool.active{background:rgba(63,169,245,.95);border-color:var(--accent);color:#04121e;font-weight:600;}
+  .editctl button.subtle{background:rgba(17,26,36,.9);border-color:var(--line);color:var(--text);
+    padding:7px 12px;border-radius:8px;font-size:11px;backdrop-filter:blur(4px);}
+  .editctl button.hidden-btn{display:none;}
+
+  .infobar{position:absolute;left:10px;top:10px;background:rgba(17,26,36,.92);border:1px solid var(--line);
+    border-radius:8px;padding:6px 10px;font-size:11.5px;color:var(--text-dim);max-width:62%;
+    backdrop-filter:blur(4px);}
+  .infobar b{color:var(--text);}
+
+  footer{flex:0 0 auto;border-top:1px solid var(--line);background:var(--panel-2);padding:8px 12px 10px;}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:8px;font-size:11px;color:var(--text-dim);}
+  .legend span{display:inline-flex;align-items:center;gap:5px;}
+  .sw{width:12px;height:12px;border-radius:3px;display:inline-block;border:1px solid rgba(255,255,255,.15);}
+  .stats{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--text-dim);}
+  .stats b{color:var(--text);font-weight:600;}
+  .stats .crit{color:var(--s3);}
+  .stats .high{color:var(--s2);}
+  .stats .warm{color:var(--s1);}
+
+  .toast{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);background:rgba(17,26,36,.95);
+    border:1px solid var(--accent);color:var(--text);padding:7px 14px;border-radius:20px;font-size:12px;
+    opacity:0;pointer-events:none;transition:opacity .25s;z-index:5;}
+  .toast.show{opacity:1;}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="hdr-text">
+    <h1>PV Digitaler Zwilling</h1>
+    <p class="sub" id="subhint">Tippen = Zustand weiterschalten &nbsp;·&nbsp; Doppeltipp = zurücksetzen &nbsp;·&nbsp; Ziehen = verschieben (Ansicht) &nbsp;·&nbsp; Pinch/Scroll = zoomen</p>
+  </div>
+  <div class="hdr-btns">
+    <button id="btnDashboard">📋 Projekte</button>
+    <button id="btnEditMode">✎ Layout</button>
+  </div>
+</header>
+
+<div class="dashboard-overlay hidden" id="dashboardOverlay">
+  <div class="dashboard-panel">
+    <div class="dashboard-header">
+      <h2>Gespeicherte Projekte</h2>
+      <button id="btnCloseDashboard">✕</button>
+    </div>
+    <div class="dashboard-list" id="dashboardList">Lädt …</div>
+  </div>
+</div>
+
+<div class="dashboard-overlay hidden" id="modalOverlay">
+  <div class="dashboard-panel" style="max-width:360px;">
+    <div class="dashboard-header" style="border-bottom:none;padding-bottom:4px;">
+      <h2 id="modalTitle">Bestätigen</h2>
+    </div>
+    <div style="padding:0 16px 16px;">
+      <p id="modalMsg" style="font-size:13px;color:var(--text);margin:0 0 10px;"></p>
+      <input type="text" id="modalInput" class="modal-input" style="display:none;">
+      <div class="btnrow" style="margin-top:14px;">
+        <button id="modalCancel" style="flex:1;">Abbrechen</button>
+        <button id="modalOk" class="primary" style="flex:1;">OK</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<details class="config" id="cfgPanel">
+  <summary>Anlagenkonfiguration <span class="car">▸</span></summary>
+  <div class="cfg-body">
+    <div class="cfg-full">
+      <label>Anlagenname (zum Speichern/Laden)</label>
+      <input type="text" id="plantName" placeholder="z. B. Solarpark Morbach Ost" value="Solarpark">
+    </div>
+    <div>
+      <label>Anzahl Reihen (Startlayout)</label>
+      <input type="number" id="numRows" value="20" min="1" max="400">
+    </div>
+    <div>
+      <label>Module pro Reihe (Standard)</label>
+      <input type="number" id="modPerRow" value="20" min="1" max="400">
+    </div>
+    <div>
+      <label>Module übereinander je Position</label>
+      <input type="number" id="stackCount" value="3" min="1" max="10">
+    </div>
+    <div class="cfg-full">
+      <label>Module je Reihe individuell (optional, kommagetrennt — nur für das Startlayout)</label>
+      <input type="text" id="rowOverride" placeholder="z. B. 8,14,20,20,20,18,...">
+    </div>
+    <div>
+      <label>Kachel-Layout je Modul</label>
+      <input type="text" id="cellLayout" value="6x12" placeholder="Spalten x Reihen = 72">
+    </div>
+    <div>
+      <label>Kacheln pro Modul (Kontrolle)</label>
+      <input type="number" id="cellCount" value="72" readonly style="opacity:.55">
+    </div>
+    <div class="btnrow">
+      <button class="primary" id="btnGenerate" style="flex:1">Startlayout erzeugen</button>
+    </div>
+    <div class="btnrow">
+      <button id="btnSave" style="flex:1">Speichern</button>
+      <button id="btnLoad" style="flex:1">Laden</button>
+      <button class="warn" id="btnResetAll" style="flex:1">Markierungen zurücksetzen</button>
+    </div>
+
+    <div class="cfg-section-title">Hintergrundbild zum Nachzeichnen</div>
+    <div class="cfg-full">
+      <label>Foto oder Plan der Anlage (Luftbild, Lageplan, o. ä.)</label>
+      <div class="btnrow" style="margin-top:0;">
+        <button id="btnUploadBg" style="flex:1">Bild hochladen</button>
+        <button class="warn" id="btnRemoveBg" style="flex:1">Bild entfernen</button>
+      </div>
+      <input type="file" id="bgFileInput" accept="image/*" style="display:none;">
+    </div>
+    <div>
+      <label>Bild-Skalierung (%)</label>
+      <input type="number" id="bgScale" value="100" min="1" max="3000">
+    </div>
+    <div>
+      <label>Bild-Rotation (°)</label>
+      <input type="number" id="bgRotation" value="0" min="-180" max="180">
+    </div>
+    <div>
+      <label>Bild-Transparenz (%)</label>
+      <input type="number" id="bgOpacity" value="70" min="10" max="100">
+    </div>
+    <div class="checkline">
+      <input type="checkbox" id="bgVisible" checked>
+      <label for="bgVisible" style="margin:0;">Bild anzeigen</label>
+    </div>
+
+    <div class="cfg-section-title">PDF-Export (Vektor, ohne Modulbeschriftung)</div>
+    <div class="checkline">
+      <input type="checkbox" id="pdfGrayscale">
+      <label for="pdfGrayscale" style="margin:0;">PDF in Schwarz-Weiß exportieren (druckoptimiert)</label>
+    </div>
+    <div class="btnrow">
+      <button class="primary" id="btnPdf" style="flex:1">PDF erstellen &amp; speichern</button>
+    </div>
+  </div>
+</details>
+
+<main>
+  <canvas id="cv"></canvas>
+  <div class="infobar" id="infobar">Tippe eine Kachel an, um Details zu sehen.</div>
+  <div class="zoomctl">
+    <button id="zin">+</button>
+    <button id="zout">–</button>
+    <button id="zfit">⤢</button>
+  </div>
+  <div class="editctl" id="editctl">
+    <div class="toolgroup" id="toolgroup">
+      <button data-tool="move" class="tool">⇕ Verschieben</button>
+      <button data-tool="add" class="tool">+ Hinzufügen</button>
+      <button data-tool="delete" class="tool">✕ Löschen</button>
+      <button data-tool="row" class="tool">▤ Reihe wählen</button>
+      <button data-tool="trace" class="tool">📐 Reihe zeichnen</button>
+      <button data-tool="image" class="tool">🖼 Bild verschieben</button>
+    </div>
+    <button id="btnClearSelect" class="subtle hidden-btn">Auswahl aufheben</button>
+    <button id="btnDeleteSelected" class="subtle hidden-btn" style="border-color:#7a1414;color:#f2a6a6;">Auswahl löschen</button>
+  </div>
+  <div class="toast" id="toast"></div>
+</main>
+
+<footer>
+  <div class="legend">
+    <span><i class="sw" style="background:var(--cell-normal)"></i>Normal</span>
+    <span><i class="sw" style="background:var(--s1)"></i>Leicht auffällig</span>
+    <span><i class="sw" style="background:var(--s2)"></i>Deutlich erhöht</span>
+    <span><i class="sw" style="background:var(--s3)"></i>Hotspot / kritisch</span>
+  </div>
+  <div class="stats" id="stats">–</div>
+</footer>
+
+<script>
+/* Standalone-Shim: Wenn die Seite nicht in Claude läuft (z. B. Hostinger),
+   stellt dieser Block window.claude.use('db'|'assets'|'downloads') lokal im Browser bereit.
+   Projekte und Hintergrundbilder werden in IndexedDB dieses Browsers gespeichert. */
+(function(){
+  if(window.claude && typeof window.claude.use === 'function') return;
+  let dbp = null;
+  function open(){
+    if(dbp) return dbp;
+    dbp = new Promise((res, rej)=>{
+      const r = indexedDB.open('pv-twin', 1);
+      r.onupgradeneeded = ()=> r.result.createObjectStore('kv');
+      r.onsuccess = ()=> res(r.result);
+      r.onerror = ()=> rej(r.error);
+    });
+    return dbp;
+  }
+  function tx(mode, fn){
+    return open().then(db=> new Promise((res, rej)=>{
+      const t = db.transaction('kv', mode);
+      const out = fn(t.objectStore('kv'));
+      t.oncomplete = ()=> res(out && 'result' in out ? out.result : undefined);
+      t.onerror = ()=> rej(t.error);
+    }));
+  }
+  const clone = v => JSON.parse(JSON.stringify(v));
+  function snap(id, data){ return { id, exists: data !== undefined, data: ()=> data === undefined ? undefined : clone(data) }; }
+  function docRef(path){
+    const id = path.split('/').pop();
+    return {
+      id, path,
+      get: ()=> tx('readonly', s=> s.get(path)).then(v=> snap(id, v)),
+      set: d=> tx('readwrite', s=>{ s.put(clone(d), path); }),
+      update: async d=>{ const cur = (await tx('readonly', s=> s.get(path))) || {}; await tx('readwrite', s=>{ s.put(Object.assign({}, cur, clone(d)), path); }); },
+      delete: ()=> tx('readwrite', s=>{ s.delete(path); }),
+      collection: n=> colRef(path + '/' + n)
+    };
+  }
+  function colRef(path){
+    return {
+      doc: id=> docRef(path + '/' + id),
+      get: async ()=>{
+        const db = await open();
+        const docs = await new Promise((res, rej)=>{
+          const out = [];
+          const rq = db.transaction('kv').objectStore('kv').openCursor();
+          rq.onsuccess = ()=>{
+            const c = rq.result;
+            if(!c){ res(out); return; }
+            const k = String(c.key);
+            if(k.startsWith(path + '/') && k.slice(path.length + 1).indexOf('/') === -1){
+              const id = k.slice(path.length + 1);
+              out.push(snap(id, c.value));
+            }
+            c.continue();
+          };
+          rq.onerror = ()=> rej(rq.error);
+        });
+        return { docs };
+      }
+    };
+  }
+  const dbApi = { doc: docRef, collection: colRef };
+  const assetsApi = {
+    upload: blob => new Promise((res, rej)=>{
+      const fr = new FileReader();
+      fr.onload = ()=> res({ id: 'local-' + Date.now(), url: fr.result });
+      fr.onerror = ()=> rej(fr.error);
+      fr.readAsDataURL(blob);
+    }),
+    delete: async ()=>{}
+  };
+  window.claude = { use: async name => name === 'db' ? dbApi : name === 'assets' ? assetsApi : null };
+})();
+</script>
+<script>
+(function(){
+  const canvas = document.getElementById('cv');
+  const ctx = canvas.getContext('2d');
+  const cfgPanel = document.getElementById('cfgPanel');
+  const infobar = document.getElementById('infobar');
+  const toastEl = document.getElementById('toast');
+  const statsEl = document.getElementById('stats');
+  const subhintEl = document.getElementById('subhint');
+  const toolButtons = document.querySelectorAll('#toolgroup button[data-tool]');
+
+  function getVar(name){ return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+
+  // Colors read ONCE — never call getComputedStyle inside draw(), it is a major
+  // performance killer at scale (was previously called per cell, per frame).
+  const COLORS = {
+    moduleFrame: getVar('--module-frame'),
+    cellNormal: getVar('--cell-normal'),
+    cellGrid: getVar('--cell-grid'),
+    s1: getVar('--s1'), s2: getVar('--s2'), s3: getVar('--s3'),
+    amber: getVar('--amber'), accent: getVar('--accent'),
+    deleteSel: '#d9534f'
+  };
+
+  // ---- state -------------------------------------------------
+  // plant.positions: [{id, x, y, label, row, angle}] — freely placeable, optionally
+  //   rotated stacks of `stack` modules. row = originating row/trace id (or null).
+  // plant.marks: Map("posId-si-cr-cc" -> severity state 1|2|3)
+  // plant.bg: {img, assetId, url, x, y, scale, rotationDeg, opacity, visible} | null
+  let plant = null;
+  let view = {x:0, y:0, scale:1};
+  let editMode = false;
+  let editTool = 'move'; // 'move' | 'add' | 'delete' | 'row' | 'trace' | 'image'
+  let selectedIds = new Set();
+  let tracePending = null; // {x,y} world coords — first point of a traced row
+
+  let draggingPos = null, dragOffset = {dx:0, dy:0};
+  let groupDragging = false, groupGrabStart = null, groupStartPositions = null;
+  let marqueeRect = null;
+  let pendingTapTarget = null;
+  let lastEditTap = {t:0, id:null};
+
+  const STATE_COLORS = [null, COLORS.s1, COLORS.s2, COLORS.s3];
+  const N_STATES = 4;
+  const GRID_VISIBLE_SCALE = 0.22; // only draw the fine cell grid once zoomed in this far
+
+  function normalizeAngle(a){ while(a>Math.PI) a-=2*Math.PI; while(a<-Math.PI) a+=2*Math.PI; return a; }
+
+  function resizeCanvas(){
+    const dpr = window.devicePixelRatio || 1;
+    const r = canvas.getBoundingClientRect();
+    canvas.width = Math.round(r.width * dpr);
+    canvas.height = Math.round(r.height * dpr);
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    draw();
+  }
+  window.addEventListener('resize', resizeCanvas);
+
+  // ---- geometry ------------------------------------------------
+  const CELL_SIZE = 10;
+  const CELL_GAP = 1;
+  const MODULE_GAP = 6;
+  const ROW_GAP = 26;
+  const STACK_GAP = 3;
+  const MODULE_BORDER = 3;
+
+  function moduleSize(){
+    if(!plant) return {w:0,h:0};
+    return {
+      w: plant.cellCols*CELL_SIZE + (plant.cellCols-1)*CELL_GAP,
+      h: plant.cellRows*CELL_SIZE + (plant.cellRows-1)*CELL_GAP
+    };
+  }
+  function stackHeight(){
+    const {h} = moduleSize();
+    return plant.stack*h + (plant.stack-1)*STACK_GAP;
+  }
+
+  function buildPlant(){
+    const numRows = clampInt(document.getElementById('numRows').value, 1, 400, 20);
+    const modPerRow = clampInt(document.getElementById('modPerRow').value, 1, 400, 20);
+    const stack = clampInt(document.getElementById('stackCount').value, 1, 10, 3);
+    const overrideRaw = document.getElementById('rowOverride').value.trim();
+    const layoutRaw = document.getElementById('cellLayout').value.trim().toLowerCase();
+
+    let cellCols = 6, cellRows = 12;
+    const m = layoutRaw.match(/^(\d+)\s*x\s*(\d+)$/);
+    if(m){ cellCols = parseInt(m[1],10); cellRows = parseInt(m[2],10); }
+    document.getElementById('cellCount').value = cellCols*cellRows;
+
+    let rowCounts = [];
+    if(overrideRaw){
+      rowCounts = overrideRaw.split(',').map(s=>parseInt(s.trim(),10)).filter(n=>!isNaN(n)&&n>0);
+    }
+    if(rowCounts.length === 0){
+      rowCounts = Array.from({length:numRows}, ()=>modPerRow);
+    }
+
+    const carryBg = plant ? plant.bg : null;
+
+    plant = {
+      cellCols, cellRows, stack,
+      positions: [],
+      marks: new Map(),
+      nextId: 1,
+      bg: carryBg,
+      name: document.getElementById('plantName').value.trim() || 'Solarpark'
+    };
+    selectedIds = new Set();
+    editTool = 'move';
+    tracePending = null;
+    const {w:mw} = moduleSize();
+    const sh = stackHeight();
+    rowCounts.forEach((count, ri)=>{
+      for(let mi=0; mi<count; mi++){
+        plant.positions.push({
+          id: plant.nextId++,
+          x: mi*(mw+MODULE_GAP),
+          y: ri*(sh+ROW_GAP),
+          label: '',
+          row: ri,
+          angle: 0
+        });
+      }
+    });
+    fitView();
+    updateStats();
+    updateToolButtons();
+    refreshEditButtons();
+    syncBgControls();
+    draw();
+  }
+
+  function clampInt(v,min,max,fallback){
+    let n = parseInt(v,10);
+    if(isNaN(n)) n = fallback;
+    return Math.max(min, Math.min(max,n));
+  }
+
+  function positionCorners(pos, mw, sh){
+    const cx = pos.x+mw/2, cy = pos.y+sh/2;
+    const ang = pos.angle||0;
+    const cos = Math.cos(ang), sin = Math.sin(ang);
+    const local = [{x:-mw/2,y:-sh/2},{x:mw/2,y:-sh/2},{x:mw/2,y:sh/2},{x:-mw/2,y:sh/2}];
+    return local.map(pt=>({x:cx+pt.x*cos-pt.y*sin, y:cy+pt.x*sin+pt.y*cos}));
+  }
+
+  function bgCorners(bg, iw, ih){
+    const cx = bg.x+iw/2, cy = bg.y+ih/2;
+    const ang = (bg.rotationDeg||0)*Math.PI/180;
+    const cos = Math.cos(ang), sin = Math.sin(ang);
+    const local = [{x:-iw/2,y:-ih/2},{x:iw/2,y:-ih/2},{x:iw/2,y:ih/2},{x:-iw/2,y:ih/2}];
+    return local.map(pt=>({x:cx+pt.x*cos-pt.y*sin, y:cy+pt.x*sin+pt.y*cos}));
+  }
+
+  function plantBounds(includeBg){
+    const {w:mw} = moduleSize();
+    const sh = stackHeight();
+    if(!plant) return {minX:0,minY:0,maxX:200,maxY:200};
+    let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+    let any = false;
+    for(const pos of plant.positions){
+      any = true;
+      for(const c of positionCorners(pos, mw, sh)){
+        minX=Math.min(minX,c.x); minY=Math.min(minY,c.y);
+        maxX=Math.max(maxX,c.x); maxY=Math.max(maxY,c.y);
+      }
+    }
+    if(includeBg && plant.bg && plant.bg.img){
+      any = true;
+      const iw = plant.bg.img.naturalWidth*plant.bg.scale, ih = plant.bg.img.naturalHeight*plant.bg.scale;
+      for(const c of bgCorners(plant.bg, iw, ih)){
+        minX=Math.min(minX,c.x); minY=Math.min(minY,c.y);
+        maxX=Math.max(maxX,c.x); maxY=Math.max(maxY,c.y);
+      }
+    }
+    if(!any) return {minX:0,minY:0,maxX:200,maxY:200};
+    return {minX,minY,maxX,maxY};
+  }
+
+  function fitView(){
+    if(!plant) return;
+    const r = canvas.getBoundingClientRect();
+    const {minX,minY,maxX,maxY} = plantBounds(true);
+    const totalW = Math.max(1, maxX-minX), totalH = Math.max(1, maxY-minY);
+    const pad = 30;
+    const sx = (r.width-pad*2)/totalW;
+    const sy = (r.height-pad*2)/totalH;
+    view.scale = Math.max(0.005, Math.min(sx, sy));
+    view.x = pad - minX*view.scale + Math.max(0, (r.width-pad*2-totalW*view.scale)/2);
+    view.y = pad - minY*view.scale + Math.max(0, (r.height-pad*2-totalH*view.scale)/2);
+  }
+
+  // ---- drawing (performance-critical: viewport culling + sparse cell fill) -----
+  function draw(){
+    const r = canvas.getBoundingClientRect();
+    ctx.clearRect(0,0,r.width,r.height);
+    if(!plant) return;
+
+    ctx.save();
+    ctx.translate(view.x, view.y);
+    ctx.scale(view.scale, view.scale);
+
+    const {w:mw, h:mh} = moduleSize();
+    const sh = stackHeight();
+
+    if(plant.bg && plant.bg.visible && plant.bg.img){
+      ctx.save();
+      ctx.globalAlpha = plant.bg.opacity;
+      const iw = plant.bg.img.naturalWidth*plant.bg.scale, ih = plant.bg.img.naturalHeight*plant.bg.scale;
+      ctx.translate(plant.bg.x+iw/2, plant.bg.y+ih/2);
+      ctx.rotate((plant.bg.rotationDeg||0)*Math.PI/180);
+      ctx.scale(plant.bg.scale, plant.bg.scale);
+      ctx.drawImage(plant.bg.img, -plant.bg.img.naturalWidth/2, -plant.bg.img.naturalHeight/2);
+      ctx.restore();
+    }
+
+    // viewport culling bounds (world space, with margin so partially-visible
+    // positions near the edge still draw)
+    const marginWorld = 60/view.scale;
+    const vpMinX = (0-view.x)/view.scale - marginWorld;
+    const vpMinY = (0-view.y)/view.scale - marginWorld;
+    const vpMaxX = (r.width-view.x)/view.scale + marginWorld;
+    const vpMaxY = (r.height-view.y)/view.scale + marginWorld;
+    const cullRadius = Math.hypot(mw, sh)/2;
+
+    const drawGrid = view.scale > GRID_VISIBLE_SCALE;
+    const selColor = editTool==='delete' ? COLORS.deleteSel : COLORS.accent;
+
+    // group marks by position id ONCE per frame — avoids ever looping the
+    // full 72-cell grid for cells that aren't actually marked.
+    const marksByPos = new Map();
+    for(const [key,state] of plant.marks){
+      const parts = key.split('-');
+      let arr = marksByPos.get(parts[0]);
+      if(!arr){ arr=[]; marksByPos.set(parts[0],arr); }
+      arr.push({si:+parts[1], cr:+parts[2], cc:+parts[3], state:+state});
+    }
+
+    for(const pos of plant.positions){
+      const ccx = pos.x+mw/2, ccy = pos.y+sh/2;
+      if(ccx+cullRadius<vpMinX || ccx-cullRadius>vpMaxX || ccy+cullRadius<vpMinY || ccy-cullRadius>vpMaxY) continue;
+
+      const isSelected = selectedIds.has(pos.id);
+      const posMarks = marksByPos.get(String(pos.id));
+
+      ctx.save();
+      ctx.translate(pos.x+mw/2, pos.y+sh/2);
+      ctx.rotate(pos.angle||0);
+      ctx.translate(-mw/2, -sh/2);
+
+      for(let si=0; si<plant.stack; si++){
+        const modY = si*(mh+STACK_GAP);
+
+        ctx.fillStyle = COLORS.moduleFrame;
+        ctx.fillRect(-MODULE_BORDER, modY-MODULE_BORDER, mw+MODULE_BORDER*2, mh+MODULE_BORDER*2);
+
+        ctx.fillStyle = COLORS.cellNormal;
+        ctx.fillRect(0, modY, mw, mh);
+
+        if(drawGrid){
+          ctx.beginPath();
+          for(let cc=1; cc<plant.cellCols; cc++){
+            const gx = cc*(CELL_SIZE+CELL_GAP)-CELL_GAP/2;
+            ctx.moveTo(gx, modY); ctx.lineTo(gx, modY+mh);
+          }
+          for(let cr=1; cr<plant.cellRows; cr++){
+            const gy = modY+cr*(CELL_SIZE+CELL_GAP)-CELL_GAP/2;
+            ctx.moveTo(0, gy); ctx.lineTo(mw, gy);
+          }
+          ctx.strokeStyle = COLORS.cellGrid;
+          ctx.lineWidth = 0.6;
+          ctx.stroke();
+        }
+
+        if(posMarks){
+          for(const mk of posMarks){
+            if(mk.si!==si) continue;
+            ctx.fillStyle = STATE_COLORS[mk.state];
+            const cx = mk.cc*(CELL_SIZE+CELL_GAP);
+            const cy = modY + mk.cr*(CELL_SIZE+CELL_GAP);
+            ctx.fillRect(cx, cy, CELL_SIZE, CELL_SIZE);
+          }
+        }
+      }
+
+      if(view.scale > 0.09 && (pos.label && pos.label.trim())){
+        ctx.fillStyle = isSelected ? selColor : (editMode ? COLORS.amber : '#8595a8');
+        ctx.font = (11/view.scale)+'px sans-serif';
+        ctx.fillText(pos.label, 0, -6/view.scale);
+      }
+      if(isSelected){
+        ctx.save();
+        ctx.setLineDash([]);
+        ctx.strokeStyle = selColor;
+        ctx.lineWidth = 2.5;
+        ctx.strokeRect(-MODULE_BORDER-2, -MODULE_BORDER-2, mw+(MODULE_BORDER+2)*2, sh+(MODULE_BORDER+2)*2);
+        ctx.restore();
+      } else if(editMode){
+        ctx.save();
+        ctx.setLineDash([4,3]);
+        ctx.strokeStyle = COLORS.amber;
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(-MODULE_BORDER-1, -MODULE_BORDER-1, mw+(MODULE_BORDER+1)*2, sh+(MODULE_BORDER+1)*2);
+        ctx.restore();
+      }
+      ctx.restore();
+    }
+
+    if(tracePending){
+      ctx.save();
+      ctx.fillStyle = COLORS.accent;
+      ctx.beginPath();
+      ctx.arc(tracePending.x, tracePending.y, 6/view.scale, 0, Math.PI*2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    if(marqueeRect){
+      const x0 = Math.min(marqueeRect.x0, marqueeRect.x1), x1 = Math.max(marqueeRect.x0, marqueeRect.x1);
+      const y0 = Math.min(marqueeRect.y0, marqueeRect.y1), y1 = Math.max(marqueeRect.y0, marqueeRect.y1);
+      ctx.save();
+      ctx.fillStyle = 'rgba(63,169,245,0.15)';
+      ctx.strokeStyle = COLORS.accent;
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([5,4]);
+      ctx.fillRect(x0,y0,x1-x0,y1-y0);
+      ctx.strokeRect(x0,y0,x1-x0,y1-y0);
+      ctx.restore();
+    }
+
+    ctx.restore();
+  }
+
+  // ---- hit testing (rotation-aware) ---------------------------------
+  function toLocal(pos, wx, wy){
+    const {w:mw} = moduleSize(); const sh = stackHeight();
+    const cx = pos.x+mw/2, cy = pos.y+sh/2;
+    const dx = wx-cx, dy = wy-cy;
+    const ang = -(pos.angle||0);
+    const cos = Math.cos(ang), sin = Math.sin(ang);
+    const rx = dx*cos - dy*sin, ry = dx*sin + dy*cos;
+    return { lx: rx+mw/2, ly: ry+sh/2 };
+  }
+
+  function findPositionAt(wx, wy){
+    if(!plant) return null;
+    const {w:mw} = moduleSize(); const sh = stackHeight();
+    for(let i=plant.positions.length-1; i>=0; i--){
+      const pos = plant.positions[i];
+      const {lx,ly} = toLocal(pos, wx, wy);
+      if(lx>=0 && lx<=mw && ly>=0 && ly<=sh) return pos;
+    }
+    return null;
+  }
+
+  function positionsInRect(x0,y0,x1,y1){
+    const rx0=Math.min(x0,x1), rx1=Math.max(x0,x1), ry0=Math.min(y0,y1), ry1=Math.max(y0,y1);
+    const {w:mw} = moduleSize(); const sh = stackHeight();
+    return plant.positions.filter(p=>{
+      const cx = p.x+mw/2, cy = p.y+sh/2;
+      return cx>=rx0 && cx<=rx1 && cy>=ry0 && cy<=ry1;
+    }).map(p=>p.id);
+  }
+
+  function hitTestCell(px, py){
+    if(!plant) return null;
+    const wx = (px - view.x)/view.scale;
+    const wy = (py - view.y)/view.scale;
+    const pos = findPositionAt(wx, wy);
+    if(!pos) return null;
+    const {w:mw, h:mh} = moduleSize();
+    const {lx,ly} = toLocal(pos, wx, wy);
+    const si = Math.floor(ly/(mh+STACK_GAP));
+    if(si<0 || si>=plant.stack) return null;
+    const modY = si*(mh+STACK_GAP);
+    if(ly-modY > mh) return null;
+    const localY2 = ly - modY;
+    const cc = Math.floor(lx/(CELL_SIZE+CELL_GAP));
+    const cr = Math.floor(localY2/(CELL_SIZE+CELL_GAP));
+    if(cc<0||cc>=plant.cellCols||cr<0||cr>=plant.cellRows) return null;
+    return {pos, si, cr, cc};
+  }
+
+  function screenToWorld(px, py){
+    return {x:(px-view.x)/view.scale, y:(py-view.y)/view.scale};
+  }
+
+  // ---- snapping (dock & lock modules together) -----------------------
+  function snapPosition(rawX, rawY, angle, excludeIds){
+    if(!plant) return {x:rawX, y:rawY};
+    const {w:mw} = moduleSize(); const sh = stackHeight();
+    const draggedCenter = {x: rawX+mw/2, y: rawY+sh/2};
+    const threshold = 14/Math.max(view.scale, 0.05);
+    let best=null, bestD=threshold;
+    for(const p2 of plant.positions){
+      if(excludeIds.has(p2.id)) continue;
+      const pAngle = p2.angle||0;
+      if(Math.abs(normalizeAngle(pAngle-angle)) > 0.06) continue;
+      const cos=Math.cos(pAngle), sin=Math.sin(pAngle);
+      const dirAlong={x:cos,y:sin}, dirPerp={x:-sin,y:cos};
+      const nc={x:p2.x+mw/2, y:p2.y+sh/2};
+      const cands=[
+        nc,
+        {x:nc.x+dirAlong.x*(mw+MODULE_GAP), y:nc.y+dirAlong.y*(mw+MODULE_GAP)},
+        {x:nc.x-dirAlong.x*(mw+MODULE_GAP), y:nc.y-dirAlong.y*(mw+MODULE_GAP)},
+        {x:nc.x+dirPerp.x*(sh+ROW_GAP), y:nc.y+dirPerp.y*(sh+ROW_GAP)},
+        {x:nc.x-dirPerp.x*(sh+ROW_GAP), y:nc.y-dirPerp.y*(sh+ROW_GAP)}
+      ];
+      for(const c of cands){
+        const d = Math.hypot(draggedCenter.x-c.x, draggedCenter.y-c.y);
+        if(d<bestD){ bestD=d; best=c; }
+      }
+    }
+    if(best) return { x: best.x-mw/2, y: best.y-sh/2 };
+    return {x:rawX, y:rawY};
+  }
+
+  // ---- edit-mode actions --------------------------------------------
+  function addPositionAt(px, py){
+    if(!plant) return;
+    const {w:mw} = moduleSize();
+    const sh = stackHeight();
+    const w = screenToWorld(px,py);
+    const pos = { id: plant.nextId++, x: w.x-mw/2, y: w.y-sh/2, label: '', row: null, angle: 0 };
+    plant.positions.push(pos);
+    updateStats();
+    draw();
+    toast('Neuer Modul-Stapel platziert.');
+  }
+
+  async function renamePosition(pos){
+    const val = await customPrompt('Bezeichnung für dieses Modul / diese Position:', pos.label || '');
+    if(val !== null){
+      pos.label = val.trim();
+      draw();
+    }
+  }
+
+  function deletePosition(id){
+    if(!plant) return;
+    plant.positions = plant.positions.filter(p=>p.id!==id);
+    selectedIds.delete(id);
+    for(const key of [...plant.marks.keys()]){
+      if(key.split('-')[0] === String(id)) plant.marks.delete(key);
+    }
+    updateStats();
+    refreshEditButtons();
+    draw();
+    toast('Modul-Stapel gelöscht.');
+  }
+
+  async function deleteSelected(){
+    if(!plant || selectedIds.size===0) return;
+    const n = selectedIds.size;
+    if(!(await customConfirm(n+' Modul-Stapel wirklich löschen?'))) return;
+    const idsToDelete = new Set(selectedIds);
+    plant.positions = plant.positions.filter(p=>!idsToDelete.has(p.id));
+    for(const key of [...plant.marks.keys()]){
+      if(idsToDelete.has(parseInt(key.split('-')[0],10))) plant.marks.delete(key);
+    }
+    selectedIds.clear();
+    updateStats();
+    refreshEditButtons();
+    updateEditHint();
+    draw();
+    toast(n+' Modul-Stapel gelöscht.');
+  }
+
+  function toggleSelect(id){
+    if(selectedIds.has(id)) selectedIds.delete(id); else selectedIds.add(id);
+    refreshEditButtons();
+    updateEditHint();
+    draw();
+  }
+
+  function selectRowGroup(pos){
+    if(pos.row !== null && pos.row !== undefined){
+      selectedIds = new Set(plant.positions.filter(p=>p.row===pos.row).map(p=>p.id));
+      toast(selectedIds.size+' Module der Reihe ausgewählt.');
+    } else {
+      selectedIds = new Set([pos.id]);
+      toast('Einzelnes Modul ausgewählt (keiner Startreihe zugeordnet).');
+    }
+    refreshEditButtons();
+    draw();
+  }
+
+  function clearSelection(){
+    selectedIds.clear();
+    refreshEditButtons();
+    updateEditHint();
+    draw();
+  }
+
+  function handleDoubleTapRename(pos){
+    const now = Date.now();
+    const isDouble = (lastEditTap.id===pos.id && now-lastEditTap.t<350);
+    lastEditTap = {t:now, id:pos.id};
+    if(isDouble){
+      renamePosition(pos);
+      lastEditTap = {t:0, id:null};
+      return true;
+    }
+    return false;
+  }
+
+  async function handleTraceTap(px, py){
+    const w = screenToWorld(px, py);
+    if(!tracePending){
+      tracePending = w;
+      toast('Startpunkt gesetzt – jetzt Endpunkt der Reihe antippen.');
+      draw();
+      return;
+    }
+    const a = tracePending, b = w;
+    tracePending = null;
+    const distWorld = Math.hypot(b.x-a.x, b.y-a.y);
+    const {w:mw} = moduleSize();
+    const step = mw+MODULE_GAP;
+    const estimate = Math.max(1, Math.round(distWorld/step));
+    const input = await customPrompt('Wie viele Module sollen in dieser Reihe platziert werden? (Schätzung: '+estimate+')', String(estimate));
+    if(input!==null){
+      const n = Math.max(1, parseInt(input,10)||estimate);
+      const angle = Math.atan2(b.y-a.y, b.x-a.x);
+      const sh = stackHeight();
+      const dirX = Math.cos(angle), dirY = Math.sin(angle);
+      const traceId = 'T'+Date.now();
+      for(let i=0;i<n;i++){
+        const centerX = a.x + dirX*(step*(i+0.5));
+        const centerY = a.y + dirY*(step*(i+0.5));
+        plant.positions.push({ id: plant.nextId++, x: centerX-mw/2, y: centerY-sh/2, label:'', row: traceId, angle });
+      }
+      updateStats();
+      toast(n+' Module entlang der Reihe erzeugt.');
+    }
+    draw();
+  }
+
+  function refreshEditButtons(){
+    document.getElementById('btnClearSelect').classList.toggle('hidden-btn', selectedIds.size===0);
+    const delBtn = document.getElementById('btnDeleteSelected');
+    const showDel = editTool==='delete' && selectedIds.size>0;
+    delBtn.classList.toggle('hidden-btn', !showDel);
+    if(showDel) delBtn.textContent = 'Auswahl löschen ('+selectedIds.size+')';
+  }
+
+  function updateToolButtons(){
+    toolButtons.forEach(b=> b.classList.toggle('active', b.dataset.tool===editTool));
+  }
+
+  function updateEditHint(){
+    if(!editMode){
+      subhintEl.textContent = 'Tippen = Zustand weiterschalten · Doppeltipp = zurücksetzen · Ziehen = verschieben (Ansicht) · Pinch/Scroll = zoomen';
+      return;
+    }
+    if(editTool==='move' && selectedIds.size>0){
+      subhintEl.textContent = selectedIds.size+' Modul(e) ausgewählt – ziehen zum gemeinsamen Verschieben. Beim Andocken an Nachbarmodule rastet der Block ein.';
+      return;
+    }
+    if(editTool==='delete' && selectedIds.size>0){
+      subhintEl.textContent = selectedIds.size+' Modul(e) zum Löschen ausgewählt – weitere antippen/mit Rechteck hinzufügen, oder „Auswahl löschen" antippen.';
+      return;
+    }
+    const texts = {
+      add: 'Werkzeug „Hinzufügen": Fläche antippen, um dort einen Modul-Stapel zu platzieren.',
+      delete: 'Werkzeug „Löschen": Module antippen oder mit einem Rechteck mehrere auswählen, dann „Auswahl löschen" antippen.',
+      move: 'Werkzeug „Verschieben": Rechteck über mehrere Module ziehen für Mehrfachauswahl, einzeln antippen zum An-/Abwählen, oder direkt ein Modul ziehen. Module docken beim Verschieben aneinander an.',
+      row: 'Werkzeug „Reihe wählen": Modul antippen, um seine komplette Startreihe auszuwählen und danach zu verschieben.',
+      trace: 'Werkzeug „Reihe zeichnen": Start- und Endpunkt einer Reihe im Hintergrundbild antippen, dann Modulanzahl eingeben.',
+      image: 'Werkzeug „Bild verschieben": Hintergrundbild durch Ziehen positionieren. Skalierung/Rotation/Transparenz unten im Konfigurationsbereich einstellen.'
+    };
+    subhintEl.textContent = (texts[editTool] || '') + (editTool!=='image' && editTool!=='trace' ? ' Doppeltipp auf ein Modul = umbenennen.' : '');
+  }
+
+  // ---- background image (assets capability) --------------------------
+  function syncBgControls(){
+    const has = !!(plant && plant.bg);
+    document.getElementById('bgScale').value = has ? Math.round(plant.bg.scale*100) : 100;
+    document.getElementById('bgRotation').value = has ? Math.round(plant.bg.rotationDeg||0) : 0;
+    document.getElementById('bgOpacity').value = has ? Math.round(plant.bg.opacity*100) : 70;
+    document.getElementById('bgVisible').checked = has ? !!plant.bg.visible : true;
+  }
+
+  function loadImageFromFile(file){
+    return new Promise((resolve, reject)=>{
+      const reader = new FileReader();
+      reader.onload = ev=>{
+        const img = new Image();
+        img.onload = ()=>resolve(img);
+        img.onerror = reject;
+        img.src = ev.target.result;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function setupBg(img, assetId, url){
+    if(!plant) return;
+    const rect = canvas.getBoundingClientRect();
+    const centerWorld = screenToWorld(rect.width/2, rect.height/2);
+    let scale = 1;
+    if(img.naturalWidth>0){
+      const bounds = plantBounds(false);
+      const planW = Math.max(1, bounds.maxX-bounds.minX);
+      const candidate = (planW*0.9)/img.naturalWidth;
+      if(isFinite(candidate) && candidate>0) scale = candidate;
+    }
+    const iw = img.naturalWidth*scale, ih = img.naturalHeight*scale;
+    plant.bg = {
+      img, assetId, url,
+      x: centerWorld.x - iw/2,
+      y: centerWorld.y - ih/2,
+      scale, rotationDeg:0, opacity:0.7, visible:true
+    };
+    syncBgControls();
+    fitView();
+    draw();
+    toast('Bild geladen — Werkzeug „Bild verschieben" zum Positionieren, Feinjustierung unten.');
+  }
+
+  async function handleBgFile(file){
+    if(!file || !plant) return;
+    toast('Bild wird hochgeladen …');
+    const assets = await window.claude.use('assets');
+    if(!assets){ toast('Bild-Upload hier nicht verfügbar.'); return; }
+    try{
+      const img0 = await loadImageFromFile(file);
+      const MAXD = 1600;
+      let tw = img0.naturalWidth, th = img0.naturalHeight;
+      if(Math.max(tw,th) > MAXD){
+        const s = MAXD/Math.max(tw,th);
+        tw = Math.round(tw*s); th = Math.round(th*s);
+      }
+      const off = document.createElement('canvas');
+      off.width = tw; off.height = th;
+      off.getContext('2d').drawImage(img0, 0, 0, tw, th);
+      const blob = await new Promise(res=> off.toBlob(res, 'image/jpeg', 0.85));
+      const oldAssetId = plant.bg ? plant.bg.assetId : null;
+      const res = await assets.upload(blob);
+      if(oldAssetId){ try{ await assets.delete(oldAssetId); }catch(e){} }
+      const finalImg = new Image();
+      finalImg.crossOrigin = 'anonymous';
+      finalImg.onload = ()=> setupBg(finalImg, res.id, res.url);
+      finalImg.src = res.url;
+    }catch(err){
+      console.error(err);
+      toast('Bild-Upload fehlgeschlagen.');
+    }
+  }
+
+  // ---- pointer interaction (pan, zoom, tap, drag) -------------------
+  let pointers = new Map();
+  let dragMoved = false;
+  let lastTap = {t:0, key:null};
+  let pinchStartDist = null, pinchStartScale = null, pinchStartMid=null, pinchStartView=null;
+
+  canvas.addEventListener('pointerdown', e=>{
+    canvas.setPointerCapture(e.pointerId);
+    const rect = canvas.getBoundingClientRect();
+    pointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
+    dragMoved = false;
+    draggingPos = null;
+    groupDragging = false;
+    marqueeRect = null;
+    pendingTapTarget = null;
+
+    if(pointers.size===1 && editMode && plant){
+      const w = screenToWorld(e.clientX-rect.left, e.clientY-rect.top);
+      if(editTool==='move'){
+        const hit = findPositionAt(w.x, w.y);
+        if(hit){
+          draggingPos = hit;
+          if(selectedIds.has(hit.id) && selectedIds.size>1){
+            groupDragging = true;
+            groupGrabStart = w;
+            groupStartPositions = new Map();
+            for(const id of selectedIds){
+              const pp = plant.positions.find(p=>p.id===id);
+              if(pp) groupStartPositions.set(id, {x:pp.x, y:pp.y});
+            }
+          } else {
+            dragOffset = {dx: w.x-hit.x, dy: w.y-hit.y};
+          }
+        } else {
+          marqueeRect = {x0:w.x, y0:w.y, x1:w.x, y1:w.y};
+        }
+      } else if(editTool==='delete'){
+        const hit = findPositionAt(w.x, w.y);
+        if(hit){ pendingTapTarget = hit; }
+        else { marqueeRect = {x0:w.x, y0:w.y, x1:w.x, y1:w.y}; }
+      } else if(editTool==='add' || editTool==='row'){
+        pendingTapTarget = findPositionAt(w.x, w.y);
+      }
+    }
+
+    if(pointers.size===2){
+      draggingPos = null;
+      groupDragging = false;
+      marqueeRect = null;
+      const pts = [...pointers.values()];
+      pinchStartDist = dist(pts[0], pts[1]);
+      pinchStartScale = view.scale;
+      pinchStartMid = mid(pts[0], pts[1]);
+      pinchStartView = {x:view.x, y:view.y};
+    }
+  });
+
+  canvas.addEventListener('pointermove', e=>{
+    if(!pointers.has(e.pointerId)) return;
+    const prev = pointers.get(e.pointerId);
+    pointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
+    const rect = canvas.getBoundingClientRect();
+
+    if(pointers.size===1){
+      const dx = e.clientX-prev.x, dy = e.clientY-prev.y;
+      if(Math.abs(dx)>2||Math.abs(dy)>2) dragMoved = true;
+
+      if(editMode && editTool==='move' && draggingPos){
+        const w = screenToWorld(e.clientX-rect.left, e.clientY-rect.top);
+        if(groupDragging && groupStartPositions){
+          const anchorOrig = groupStartPositions.get(draggingPos.id);
+          const delta = {x: w.x-groupGrabStart.x, y: w.y-groupGrabStart.y};
+          const rawAX = anchorOrig.x+delta.x, rawAY = anchorOrig.y+delta.y;
+          const snapped = snapPosition(rawAX, rawAY, draggingPos.angle||0, selectedIds);
+          const adjX = snapped.x-rawAX, adjY = snapped.y-rawAY;
+          for(const [id,orig] of groupStartPositions){
+            const pp = plant.positions.find(p=>p.id===id);
+            if(pp){ pp.x = orig.x+delta.x+adjX; pp.y = orig.y+delta.y+adjY; }
+          }
+        } else {
+          const rawX = w.x-dragOffset.dx, rawY = w.y-dragOffset.dy;
+          const snapped = snapPosition(rawX, rawY, draggingPos.angle||0, new Set([draggingPos.id]));
+          draggingPos.x = snapped.x; draggingPos.y = snapped.y;
+        }
+        draw();
+      } else if(editMode && (editTool==='move'||editTool==='delete') && marqueeRect){
+        const w = screenToWorld(e.clientX-rect.left, e.clientY-rect.top);
+        marqueeRect.x1 = w.x; marqueeRect.y1 = w.y;
+        draw();
+      } else if(editMode && editTool==='image' && plant && plant.bg){
+        plant.bg.x += dx/view.scale;
+        plant.bg.y += dy/view.scale;
+        draw();
+      } else if(dragMoved && !draggingPos && !marqueeRect){
+        view.x += dx; view.y += dy;
+        draw();
+      }
+    } else if(pointers.size===2){
+      const pts = [...pointers.values()];
+      const d = dist(pts[0], pts[1]);
+      const newScale = Math.max(0.005, Math.min(6, pinchStartScale * (d/pinchStartDist)));
+      const mx = pinchStartMid.x - rect.left, my = pinchStartMid.y - rect.top;
+      const wx = (mx - pinchStartView.x)/pinchStartScale;
+      const wy = (my - pinchStartView.y)/pinchStartScale;
+      view.scale = newScale;
+      view.x = mx - wx*newScale;
+      view.y = my - wy*newScale;
+      dragMoved = true;
+      draw();
+    }
+  });
+
+  function endPointer(e){
+    const rect = canvas.getBoundingClientRect();
+    const wasSingle = pointers.size===1;
+    const p = pointers.get(e.pointerId);
+    pointers.delete(e.pointerId);
+
+    if(wasSingle && p && editMode && plant){
+      if(editTool==='move'){
+        if(draggingPos){
+          if(!dragMoved){
+            if(!handleDoubleTapRename(draggingPos)) toggleSelect(draggingPos.id);
+          }
+        } else if(marqueeRect){
+          if(dragMoved){
+            const ids = positionsInRect(marqueeRect.x0, marqueeRect.y0, marqueeRect.x1, marqueeRect.y1);
+            selectedIds = new Set(ids);
+            toast(ids.length+' Module ausgewählt.');
+          } else {
+            clearSelection();
+          }
+        }
+        refreshEditButtons();
+        updateEditHint();
+        draw();
+      } else if(editTool==='trace'){
+        if(!dragMoved) handleTraceTap(p.x-rect.left, p.y-rect.top);
+      } else if(editTool==='image'){
+        // dragging already applied live in pointermove
+      } else if(editTool==='delete'){
+        if(marqueeRect){
+          if(dragMoved){
+            const ids = positionsInRect(marqueeRect.x0, marqueeRect.y0, marqueeRect.x1, marqueeRect.y1);
+            ids.forEach(id=>selectedIds.add(id));
+            toast(ids.length+' Module zur Löschauswahl hinzugefügt.');
+          } else {
+            clearSelection();
+          }
+        } else if(pendingTapTarget && !dragMoved){
+          if(!handleDoubleTapRename(pendingTapTarget)) toggleSelect(pendingTapTarget.id);
+        }
+        refreshEditButtons();
+        updateEditHint();
+        draw();
+      } else if(!dragMoved){
+        if(pendingTapTarget){
+          if(!handleDoubleTapRename(pendingTapTarget)){
+            if(editTool==='add'){
+              addPositionAt(p.x-rect.left, p.y-rect.top);
+            } else if(editTool==='row'){
+              selectRowGroup(pendingTapTarget);
+              editTool = 'move';
+              updateToolButtons();
+              updateEditHint();
+              draw();
+            }
+          }
+        } else if(editTool==='add'){
+          addPositionAt(p.x-rect.left, p.y-rect.top);
+        }
+      }
+    } else if(wasSingle && p && !editMode){
+      if(!dragMoved) handleTap(p.x-rect.left, p.y-rect.top);
+    }
+
+    draggingPos = null;
+    groupDragging = false;
+    marqueeRect = null;
+    pendingTapTarget = null;
+    pinchStartDist = null;
+  }
+  canvas.addEventListener('pointerup', endPointer);
+  canvas.addEventListener('pointercancel', endPointer);
+  canvas.addEventListener('pointerleave', e=>{ if(pointers.has(e.pointerId)) pointers.delete(e.pointerId); });
+
+  canvas.addEventListener('wheel', e=>{
+    e.preventDefault();
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX-rect.left, my = e.clientY-rect.top;
+    const wx = (mx-view.x)/view.scale, wy = (my-view.y)/view.scale;
+    const factor = e.deltaY<0 ? 1.12 : 1/1.12;
+    view.scale = Math.max(0.005, Math.min(6, view.scale*factor));
+    view.x = mx - wx*view.scale;
+    view.y = my - wy*view.scale;
+    draw();
+  }, {passive:false});
+
+  function dist(a,b){ return Math.hypot(a.x-b.x, a.y-b.y); }
+  function mid(a,b){ return {x:(a.x+b.x)/2, y:(a.y+b.y)/2}; }
+
+  function handleTap(px, py){
+    const hit = hitTestCell(px, py);
+    if(!hit) return;
+    const key = hit.pos.id+'-'+hit.si+'-'+hit.cr+'-'+hit.cc;
+    const now = Date.now();
+    const isDouble = (lastTap.key===key && now-lastTap.t<350);
+    lastTap = {t:now, key};
+
+    if(isDouble){
+      plant.marks.delete(key);
+    } else {
+      const cur = plant.marks.get(key) || 0;
+      const next = (cur+1) % N_STATES;
+      if(next===0) plant.marks.delete(key); else plant.marks.set(key, next);
+    }
+    showInfo(hit, plant.marks.get(key)||0);
+    updateStats();
+    draw();
+  }
+
+  function showInfo(hit, state){
+    const labels = ['Normal','Leicht auffällig','Deutlich erhöht','Hotspot / kritisch'];
+    const posLabel = (hit.pos.label && hit.pos.label.trim()) ? hit.pos.label : ('#'+hit.pos.id);
+    infobar.innerHTML = `<b>${posLabel}</b> · Ebene <b>${hit.si+1}/${plant.stack}</b> · Kachel <b>${hit.cr+1}/${hit.cc+1}</b> — Status: <b>${labels[state]}</b>`;
+  }
+
+  // ---- stats ------------------------------------------------------
+  function updateStats(){
+    if(!plant){ statsEl.textContent='–'; return; }
+    const totalPositions = plant.positions.length;
+    const totalModules = totalPositions * plant.stack;
+    const totalCells = totalModules * plant.cellCols * plant.cellRows;
+    let c1=0,c2=0,c3=0;
+    for(const v of plant.marks.values()){ if(v===1)c1++; else if(v===2)c2++; else if(v===3)c3++; }
+    const marked = c1+c2+c3;
+    const pct = totalCells ? ((marked/totalCells)*100).toFixed(2) : '0.00';
+    statsEl.innerHTML = `<span><b>${totalPositions}</b> Positionen · <b>${totalModules}</b> Module · <b>${totalCells.toLocaleString('de-DE')}</b> Kacheln</span>
+      <span class="warm"><b>${c1}</b> leicht</span>
+      <span class="high"><b>${c2}</b> erhöht</span>
+      <span class="crit"><b>${c3}</b> Hotspot</span>
+      <span><b>${pct}%</b> markiert</span>`;
+  }
+
+  // ---- save / load / dashboard via the "db" capability -----------------
+  function toast(msg){
+    toastEl.textContent = msg;
+    toastEl.classList.add('show');
+    setTimeout(()=>toastEl.classList.remove('show'), 1800);
+  }
+
+  // ---- custom modal (confirm/prompt) --------------------------------
+  // Native window.confirm()/prompt() are blocked inside the sandboxed
+  // artifact frame, so this replaces them with an in-page dialog.
+  let modalResolve = null;
+  function showModal(message, isPrompt, defaultValue){
+    return new Promise(resolve=>{
+      modalResolve = resolve;
+      document.getElementById('modalMsg').textContent = message;
+      const inp = document.getElementById('modalInput');
+      document.getElementById('modalTitle').textContent = isPrompt ? 'Eingabe' : 'Bestätigen';
+      if(isPrompt){
+        inp.style.display = 'block';
+        inp.value = defaultValue || '';
+        setTimeout(()=>{ inp.focus(); inp.select(); }, 30);
+      } else {
+        inp.style.display = 'none';
+      }
+      document.getElementById('modalOverlay').classList.remove('hidden');
+    });
+  }
+  function closeModal(result){
+    document.getElementById('modalOverlay').classList.add('hidden');
+    if(modalResolve){ const r = modalResolve; modalResolve = null; r(result); }
+  }
+  function modalIsPrompt(){ return document.getElementById('modalInput').style.display !== 'none'; }
+  document.getElementById('modalOk').addEventListener('click', ()=>{
+    closeModal(modalIsPrompt() ? document.getElementById('modalInput').value : true);
+  });
+  document.getElementById('modalCancel').addEventListener('click', ()=>{
+    closeModal(modalIsPrompt() ? null : false);
+  });
+  document.getElementById('modalInput').addEventListener('keydown', e=>{
+    if(e.key==='Enter'){ e.preventDefault(); closeModal(document.getElementById('modalInput').value); }
+    else if(e.key==='Escape'){ closeModal(null); }
+  });
+  document.getElementById('modalOverlay').addEventListener('click', e=>{
+    if(e.target.id==='modalOverlay') closeModal(modalIsPrompt() ? null : false);
+  });
+  function customConfirm(message){ return showModal(message, false).then(r=>r===true); }
+  function customPrompt(message, defaultValue){ return showModal(message, true, defaultValue); }
+
+  function slugify(name){
+    let s = (name||'solarpark').toLowerCase();
+    try{ s = s.normalize('NFKD').replace(/[\u0300-\u036f]/g,''); }catch(e){}
+    s = s.replace(/[^a-z0-9_\-]+/g,'_').replace(/^_+|_+$/g,'');
+    return (s || 'solarpark').slice(0,180);
+  }
+  function chunkArray(arr, size){
+    const out=[];
+    for(let i=0;i<arr.length;i+=size) out.push(arr.slice(i,i+size));
+    return out;
+  }
+  function round2(n){ return Math.round((n||0)*100)/100; }
+  function round4(n){ return Math.round((n||0)*10000)/10000; }
+
+  const POS_CHUNK = 2000, MARK_CHUNK = 5000;
+
+  async function savePlant(){
+    if(!plant){ toast('Erst eine Anlage erzeugen.'); return; }
+    const db = await window.claude.use('db');
+    if(!db){ toast('Speichern hier nicht verfügbar.'); return; }
+    const name = document.getElementById('plantName').value.trim() || 'Solarpark';
+    plant.name = name;
+    const slug = slugify(name);
+    toast('Speichere …');
+    try{
+      const projDoc = db.doc('projects/'+slug);
+      let oldPosChunks=0, oldMarkChunks=0;
+      try{
+        const oldSnap = await projDoc.get();
+        if(oldSnap.exists){
+          const od = oldSnap.data();
+          oldPosChunks = od.posChunkCount||0;
+          oldMarkChunks = od.markChunkCount||0;
+        }
+      }catch(e){}
+
+      const posItems = plant.positions.map(p=>[p.id, round2(p.x), round2(p.y), round4(p.angle||0), (p.row===undefined?null:p.row), p.label||'']);
+      const markItems = [...plant.marks.entries()];
+      const posChunks = chunkArray(posItems, POS_CHUNK);
+      const markChunks = chunkArray(markItems, MARK_CHUNK);
+
+      const writes = [];
+      posChunks.forEach((chunk,i)=> writes.push(projDoc.collection('posChunks').doc(String(i)).set({items:chunk})));
+      markChunks.forEach((chunk,i)=> writes.push(projDoc.collection('markChunks').doc(String(i)).set({items:chunk})));
+      for(let i=posChunks.length;i<oldPosChunks;i++) writes.push(projDoc.collection('posChunks').doc(String(i)).delete());
+      for(let i=markChunks.length;i<oldMarkChunks;i++) writes.push(projDoc.collection('markChunks').doc(String(i)).delete());
+
+      await Promise.all(writes);
+
+      await projDoc.set({
+        name, cellCols: plant.cellCols, cellRows: plant.cellRows, stack: plant.stack, nextId: plant.nextId,
+        posCount: plant.positions.length, markCount: markItems.length,
+        posChunkCount: posChunks.length, markChunkCount: markChunks.length,
+        bgAssetId: plant.bg ? (plant.bg.assetId||null) : null,
+        bgUrl: plant.bg ? (plant.bg.url||null) : null,
+        bgX: plant.bg?plant.bg.x:0, bgY: plant.bg?plant.bg.y:0,
+        bgScale: plant.bg?plant.bg.scale:1, bgRotationDeg: plant.bg?(plant.bg.rotationDeg||0):0,
+        bgOpacity: plant.bg?plant.bg.opacity:0.7, bgVisible: plant.bg?!!plant.bg.visible:true,
+        savedAt: new Date().toISOString()
+      });
+      toast('Gespeichert: '+name);
+    }catch(err){
+      console.error(err);
+      toast('Speichern fehlgeschlagen'+(err&&err.code?(': '+err.code):'')+'.');
+    }
+  }
+
+  async function loadPlant(){
+    const db = await window.claude.use('db');
+    if(!db){ toast('Laden hier nicht verfügbar.'); return; }
+    const name = document.getElementById('plantName').value.trim() || 'Solarpark';
+    const slug = slugify(name);
+    toast('Lade …');
+    try{
+      const projDoc = db.doc('projects/'+slug);
+      const snap = await projDoc.get();
+      if(!snap.exists){ toast('Kein gespeichertes Projekt "'+name+'" gefunden.'); return; }
+      const d = snap.data();
+
+      const posReads = [], markReads = [];
+      for(let i=0;i<(d.posChunkCount||0);i++) posReads.push(projDoc.collection('posChunks').doc(String(i)).get());
+      for(let i=0;i<(d.markChunkCount||0);i++) markReads.push(projDoc.collection('markChunks').doc(String(i)).get());
+      const [posSnaps, markSnaps] = await Promise.all([Promise.all(posReads), Promise.all(markReads)]);
+
+      const positions = [];
+      for(const s of posSnaps){
+        if(!s.exists) continue;
+        for(const it of (s.data().items||[])) positions.push({id:it[0], x:it[1], y:it[2], angle:it[3]||0, row:it[4], label:it[5]||''});
+      }
+      const marks = new Map();
+      for(const s of markSnaps){
+        if(!s.exists) continue;
+        for(const it of (s.data().items||[])) marks.set(it[0], it[1]);
+      }
+
+      plant = {
+        cellCols: d.cellCols, cellRows: d.cellRows, stack: d.stack||1,
+        nextId: d.nextId || (Math.max(0,...positions.map(p=>p.id),0)+1),
+        positions, marks, bg: null, name
+      };
+      selectedIds = new Set();
+      editTool = 'move';
+      tracePending = null;
+      document.getElementById('cellLayout').value = plant.cellCols+'x'+plant.cellRows;
+      document.getElementById('cellCount').value = plant.cellCols*plant.cellRows;
+      document.getElementById('stackCount').value = plant.stack;
+      fitView();
+      updateStats();
+      updateToolButtons();
+      refreshEditButtons();
+      syncBgControls();
+      draw();
+
+      if(d.bgUrl){
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = ()=>{
+          plant.bg = { img, assetId:d.bgAssetId||null, url:d.bgUrl, x:d.bgX||0, y:d.bgY||0,
+            scale:d.bgScale||1, rotationDeg:d.bgRotationDeg||0, opacity:d.bgOpacity||0.7, visible: d.bgVisible!==false };
+          syncBgControls(); fitView(); draw();
+        };
+        img.src = d.bgUrl;
+      }
+      toast('Geladen: '+name);
+    }catch(err){
+      console.error(err);
+      toast('Laden fehlgeschlagen'+(err&&err.code?(': '+err.code):'')+'.');
+    }
+  }
+
+  async function deleteProjectBySlug(slug){
+    const db = await window.claude.use('db');
+    if(!db) return;
+    const doc = db.doc('projects/'+slug);
+    const snap = await doc.get();
+    if(!snap.exists) return;
+    const d = snap.data();
+    const dels = [];
+    for(let i=0;i<(d.posChunkCount||0);i++) dels.push(doc.collection('posChunks').doc(String(i)).delete());
+    for(let i=0;i<(d.markChunkCount||0);i++) dels.push(doc.collection('markChunks').doc(String(i)).delete());
+    dels.push(doc.delete());
+    await Promise.all(dels);
+    if(d.bgAssetId){
+      try{ const assets = await window.claude.use('assets'); if(assets) await assets.delete(d.bgAssetId); }catch(e){}
+    }
+  }
+
+  async function renameProjectSlug(oldSlug, newName){
+    const db = await window.claude.use('db');
+    if(!db) return;
+    const newSlug = slugify(newName);
+    const oldDoc = db.doc('projects/'+oldSlug);
+    if(newSlug===oldSlug){
+      await oldDoc.update({name:newName});
+      return;
+    }
+    const snap = await oldDoc.get();
+    if(!snap.exists) return;
+    const d = snap.data();
+    const posReads=[], markReads=[];
+    for(let i=0;i<(d.posChunkCount||0);i++) posReads.push(oldDoc.collection('posChunks').doc(String(i)).get());
+    for(let i=0;i<(d.markChunkCount||0);i++) markReads.push(oldDoc.collection('markChunks').doc(String(i)).get());
+    const [posSnaps, markSnaps] = await Promise.all([Promise.all(posReads), Promise.all(markReads)]);
+    const newDoc = db.doc('projects/'+newSlug);
+    const writes = [];
+    posSnaps.forEach((s,i)=>{ if(s.exists) writes.push(newDoc.collection('posChunks').doc(String(i)).set(s.data())); });
+    markSnaps.forEach((s,i)=>{ if(s.exists) writes.push(newDoc.collection('markChunks').doc(String(i)).set(s.data())); });
+    writes.push(newDoc.set(Object.assign({}, d, {name:newName})));
+    await Promise.all(writes);
+    const dels = [];
+    for(let i=0;i<(d.posChunkCount||0);i++) dels.push(oldDoc.collection('posChunks').doc(String(i)).delete());
+    for(let i=0;i<(d.markChunkCount||0);i++) dels.push(oldDoc.collection('markChunks').doc(String(i)).delete());
+    dels.push(oldDoc.delete());
+    await Promise.all(dels);
+  }
+
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  async function openDashboard(){
+    const overlay = document.getElementById('dashboardOverlay');
+    const list = document.getElementById('dashboardList');
+    overlay.classList.remove('hidden');
+    list.innerHTML = 'Lädt …';
+    const db = await window.claude.use('db');
+    if(!db){ list.innerHTML = '<p class="dim">Projektübersicht hier nicht verfügbar.</p>'; return; }
+    try{
+      const snap = await db.collection('projects').get();
+      const rows = snap.docs.map(d=>{
+        const v = d.data();
+        return {
+          slug: d.id, name: v.name||d.id,
+          posCount: v.posCount||0, modCount: (v.posCount||0)*(v.stack||1),
+          savedAt: v.savedAt ? new Date(v.savedAt).toLocaleString('de-DE') : '–'
+        };
+      });
+      if(rows.length===0){
+        list.innerHTML = '<p class="dim">Noch keine gespeicherten Projekte. Vergib oben einen Anlagennamen und tippe „Speichern".</p>';
+        return;
+      }
+      rows.sort((a,b)=> a.name.localeCompare(b.name,'de'));
+      list.innerHTML = rows.map(r=>`
+        <div class="dash-row">
+          <div class="dash-info">
+            <div class="dash-name">${escapeHtml(r.name)}</div>
+            <div class="dash-meta">${r.posCount} Positionen · ${r.modCount} Module · zuletzt gespeichert: ${escapeHtml(r.savedAt)}</div>
+          </div>
+          <div class="dash-actions">
+            <button data-open="${escapeHtml(r.slug)}" data-name="${escapeHtml(r.name)}">Öffnen</button>
+            <button data-rename="${escapeHtml(r.slug)}" data-name="${escapeHtml(r.name)}">Umbenennen</button>
+            <button class="warn" data-del="${escapeHtml(r.slug)}" data-name="${escapeHtml(r.name)}">Löschen</button>
+          </div>
+        </div>
+      `).join('');
+      list.querySelectorAll('[data-open]').forEach(b=> b.addEventListener('click', ()=>{
+        document.getElementById('plantName').value = b.dataset.name;
+        loadPlant();
+        closeDashboard();
+      }));
+      list.querySelectorAll('[data-rename]').forEach(b=> b.addEventListener('click', async ()=>{
+        const oldSlug = b.dataset.rename, oldName = b.dataset.name;
+        const newName = await customPrompt('Neuer Name für "'+oldName+'":', oldName);
+        if(!newName || !newName.trim() || newName.trim()===oldName) return;
+        toast('Benenne um …');
+        try{ await renameProjectSlug(oldSlug, newName.trim()); toast('Umbenannt zu "'+newName.trim()+'".'); openDashboard(); }
+        catch(e){ toast('Umbenennen fehlgeschlagen.'); }
+      }));
+      list.querySelectorAll('[data-del]').forEach(b=> b.addEventListener('click', async ()=>{
+        const slug = b.dataset.del, nm = b.dataset.name;
+        if(!(await customConfirm('Projekt "'+nm+'" endgültig löschen?'))) return;
+        toast('Lösche …');
+        try{ await deleteProjectBySlug(slug); toast('Projekt gelöscht.'); openDashboard(); }
+        catch(e){ toast('Löschen fehlgeschlagen.'); }
+      }));
+    }catch(err){
+      console.error(err);
+      list.innerHTML = '<p class="dim">Projekte konnten nicht geladen werden.</p>';
+    }
+  }
+
+  function closeDashboard(){
+    document.getElementById('dashboardOverlay').classList.add('hidden');
+  }
+
+  // ---- PDF export — vector drawing (crisp at any zoom, small file) -------
+  function pdfPalette(grayscale){
+    if(grayscale){
+      return { bg:[255,255,255], frame:[0,0,0], normal:[245,245,245], s1:[199,199,199], s2:[122,122,122], s3:[0,0,0],
+        text:[0,0,0], textDim:[74,74,74], cellBorder:[208,208,208] };
+    }
+    return { bg:[11,17,23], frame:[201,212,222], normal:[22,32,44], s1:[224,151,63], s2:[217,83,79], s3:[122,20,20],
+      text:[219,230,240], textDim:[122,139,160], cellBorder:[38,55,74] };
+  }
+
+  async function buildVectorPdfBlob(grayscale){
+    const {w:mw, h:mh} = moduleSize();
+    const sh = stackHeight();
+    const {minX,minY,maxX,maxY} = plantBounds(false);
+    const totalW = Math.max(1,maxX-minX), totalH = Math.max(1,maxY-minY);
+    const pal = pdfPalette(grayscale);
+    const margin = 24, legendH = 34;
+    const pageW = totalW+margin*2, pageH = totalH+margin*2+legendH;
+
+    const { jsPDF } = window.jspdf;
+    const orientation = pageW>=pageH ? 'l' : 'p';
+    const doc = new jsPDF({ orientation, unit:'pt', format:[pageW,pageH], compress:true });
+
+    const setFill = c=>doc.setFillColor(c[0],c[1],c[2]);
+    const setDraw = c=>doc.setDrawColor(c[0],c[1],c[2]);
+    const quad = (c0,c1,c2,c3,style)=>{
+      doc.lines([[c1.x-c0.x,c1.y-c0.y],[c2.x-c1.x,c2.y-c1.y],[c3.x-c2.x,c3.y-c2.y],[c0.x-c3.x,c0.y-c3.y]], c0.x, c0.y, [1,1], style, true);
+    };
+
+    setFill(pal.bg);
+    doc.rect(0,0,pageW,pageH,'F');
+
+    const ox = margin - minX, oy = margin - minY;
+    const totalCellsAll = plant.positions.length*plant.stack*plant.cellCols*plant.cellRows;
+    const drawGrid = totalCellsAll <= 150000;
+
+    const marksByPos = new Map();
+    for(const [key,state] of plant.marks){
+      const parts = key.split('-');
+      let arr = marksByPos.get(parts[0]);
+      if(!arr){ arr=[]; marksByPos.set(parts[0],arr); }
+      arr.push({si:+parts[1], cr:+parts[2], cc:+parts[3], state:+state});
+    }
+
+    doc.setLineWidth(0.6);
+    for(const pos of plant.positions){
+      const angle = pos.angle||0;
+      const cx = pos.x+mw/2+ox, cy = pos.y+sh/2+oy;
+      const cos = Math.cos(angle), sin = Math.sin(angle);
+      const tp = (lx,ly)=>{
+        const dx = lx-mw/2, dy = ly-sh/2;
+        return { x: cx+dx*cos-dy*sin, y: cy+dx*sin+dy*cos };
+      };
+      const posMarks = marksByPos.get(String(pos.id));
+
+      for(let si=0; si<plant.stack; si++){
+        const modY = si*(mh+STACK_GAP);
+        const c0=tp(0,modY), c1=tp(mw,modY), c2=tp(mw,modY+mh), c3=tp(0,modY+mh);
+
+        setFill(pal.normal);
+        quad(c0,c1,c2,c3,'F');
+        setDraw(pal.frame);
+        doc.setLineWidth(0.7);
+        quad(c0,c1,c2,c3,'S');
+
+        if(drawGrid){
+          setDraw(pal.cellBorder);
+          doc.setLineWidth(0.2);
+          for(let cc=1; cc<plant.cellCols; cc++){
+            const gx = cc*(CELL_SIZE+CELL_GAP)-CELL_GAP/2;
+            const p1=tp(gx,modY), p2=tp(gx,modY+mh);
+            doc.line(p1.x,p1.y,p2.x,p2.y);
+          }
+          for(let cr=1; cr<plant.cellRows; cr++){
+            const gy = modY+cr*(CELL_SIZE+CELL_GAP)-CELL_GAP/2;
+            const p1=tp(0,gy), p2=tp(mw,gy);
+            doc.line(p1.x,p1.y,p2.x,p2.y);
+          }
+        }
+
+        if(posMarks){
+          for(const mk of posMarks){
+            if(mk.si!==si) continue;
+            const col = [null,pal.s1,pal.s2,pal.s3][mk.state];
+            if(!col) continue;
+            const cx0 = mk.cc*(CELL_SIZE+CELL_GAP), cy0 = modY+mk.cr*(CELL_SIZE+CELL_GAP);
+            const q0=tp(cx0,cy0), q1=tp(cx0+CELL_SIZE,cy0), q2=tp(cx0+CELL_SIZE,cy0+CELL_SIZE), q3=tp(cx0,cy0+CELL_SIZE);
+            setFill(col);
+            quad(q0,q1,q2,q3,'F');
+          }
+        }
+      }
+    }
+
+    doc.setTextColor(pal.text[0],pal.text[1],pal.text[2]);
+    doc.setFontSize(14);
+    doc.text(plant.name, margin, 18);
+    doc.setFontSize(8);
+    doc.setTextColor(pal.textDim[0],pal.textDim[1],pal.textDim[2]);
+    const now = new Date().toLocaleString('de-DE');
+    const totalModules = plant.positions.length*plant.stack;
+    doc.text('Erstellt am '+now+' · '+plant.positions.length+' Positionen × '+plant.stack+' Module übereinander', margin, 28);
+
+    const legendY = pageH-legendH+16;
+    const swatches = [
+      {c:pal.normal,label:'Normal'}, {c:pal.s1,label:'Leicht auffällig'},
+      {c:pal.s2,label:'Deutlich erhöht'}, {c:pal.s3,label:'Hotspot / kritisch'}
+    ];
+    let lx = margin;
+    doc.setFontSize(8);
+    doc.setLineWidth(0.5);
+    swatches.forEach(sItem=>{
+      setFill(sItem.c); setDraw(pal.frame);
+      doc.rect(lx, legendY-8, 8, 8, 'FD');
+      doc.setTextColor(pal.text[0],pal.text[1],pal.text[2]);
+      doc.text(sItem.label, lx+11, legendY-1);
+      lx += doc.getTextWidth(sItem.label)+34;
+    });
+    let c1=0,c2=0,c3=0;
+    for(const v of plant.marks.values()){ if(v===1)c1++; else if(v===2)c2++; else if(v===3)c3++; }
+    doc.setTextColor(pal.textDim[0],pal.textDim[1],pal.textDim[2]);
+    doc.text(`${totalModules} Module · ${c1} leicht · ${c2} erhöht · ${c3} Hotspot`+
+      (drawGrid?'':' · Feingitter bei dieser Anlagengröße aus Performance-/Dateigründen ausgeblendet'), margin, legendY+12);
+
+    return doc.output('blob');
+  }
+
+  async function exportPdf(){
+    if(!plant || plant.positions.length===0){ toast('Erst eine Anlage erzeugen.'); return; }
+    if(!window.jspdf){ toast('PDF-Bibliothek konnte nicht geladen werden.'); return; }
+    const grayscale = document.getElementById('pdfGrayscale').checked;
+    toast('PDF wird erstellt …');
+    try{
+      const blob = await buildVectorPdfBlob(grayscale);
+      const fname = (plant.name||'pv-anlage').replace(/[^a-z0-9äöüß_\- ]/gi,'').trim().replace(/\s+/g,'_') || 'pv-anlage';
+
+      const downloads = await window.claude.use('downloads');
+      if(downloads){
+        try{
+          const result = await downloads.save({ filename: fname+'.pdf', data: blob });
+          toast(result.status==='saved' ? 'PDF gespeichert.' : 'PDF übergeben.');
+          return;
+        }catch(err){
+          if(err && err.code==='declined'){ toast('Speichern abgebrochen.'); return; }
+          console.warn('downloads.save fehlgeschlagen, nutze Fallback.', err);
+        }
+      }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = fname+'.pdf';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url), 4000);
+      toast('PDF heruntergeladen.');
+    }catch(err){
+      console.error(err);
+      toast('PDF-Erstellung fehlgeschlagen.');
+    }
+  }
+
+  // ---- wiring ----------------------------------------------------
+  document.getElementById('btnGenerate').addEventListener('click', async ()=>{
+    if(plant && plant.positions.length && !(await customConfirm('Bestehendes Layout inkl. manueller Anpassungen wird ersetzt. Fortfahren?'))) return;
+    buildPlant();
+    cfgPanel.removeAttribute('open');
+  });
+  document.getElementById('btnSave').addEventListener('click', savePlant);
+  document.getElementById('btnLoad').addEventListener('click', loadPlant);
+  document.getElementById('btnResetAll').addEventListener('click', async ()=>{
+    if(!plant) return;
+    if(await customConfirm('Alle Zustandsmarkierungen dieser Anlage wirklich zurücksetzen? (Layout bleibt erhalten)')){
+      plant.marks.clear();
+      updateStats();
+      draw();
+    }
+  });
+  document.getElementById('btnPdf').addEventListener('click', exportPdf);
+  document.getElementById('btnClearSelect').addEventListener('click', clearSelection);
+  document.getElementById('btnDeleteSelected').addEventListener('click', deleteSelected);
+  document.getElementById('btnDashboard').addEventListener('click', openDashboard);
+  document.getElementById('btnCloseDashboard').addEventListener('click', closeDashboard);
+  document.getElementById('dashboardOverlay').addEventListener('click', e=>{
+    if(e.target.id==='dashboardOverlay') closeDashboard();
+  });
+  document.getElementById('btnUploadBg').addEventListener('click', ()=> document.getElementById('bgFileInput').click());
+  document.getElementById('bgFileInput').addEventListener('change', e=>{
+    const f = e.target.files[0];
+    if(f) handleBgFile(f);
+    e.target.value = '';
+  });
+  document.getElementById('btnRemoveBg').addEventListener('click', async ()=>{
+    if(!plant || !plant.bg) return;
+    const assetId = plant.bg.assetId;
+    plant.bg = null;
+    syncBgControls();
+    draw();
+    toast('Bild entfernt.');
+    if(assetId){
+      try{ const assets = await window.claude.use('assets'); if(assets) await assets.delete(assetId); }catch(e){}
+    }
+  });
+  document.getElementById('bgScale').addEventListener('input', e=>{
+    if(plant && plant.bg){ plant.bg.scale = Math.max(0.01, (parseFloat(e.target.value)||100)/100); draw(); }
+  });
+  document.getElementById('bgRotation').addEventListener('input', e=>{
+    if(plant && plant.bg){ plant.bg.rotationDeg = parseFloat(e.target.value)||0; draw(); }
+  });
+  document.getElementById('bgOpacity').addEventListener('input', e=>{
+    if(plant && plant.bg){ plant.bg.opacity = Math.max(0.05, Math.min(1,(parseFloat(e.target.value)||70)/100)); draw(); }
+  });
+  document.getElementById('bgVisible').addEventListener('change', e=>{
+    if(plant && plant.bg){ plant.bg.visible = e.target.checked; draw(); }
+  });
+  toolButtons.forEach(b=>{
+    b.addEventListener('click', ()=>{
+      editTool = b.dataset.tool;
+      selectedIds.clear();
+      marqueeRect = null;
+      tracePending = null;
+      updateToolButtons();
+      refreshEditButtons();
+      updateEditHint();
+      draw();
+    });
+  });
+  document.getElementById('btnEditMode').addEventListener('click', ()=>{
+    editMode = !editMode;
+    const btn = document.getElementById('btnEditMode');
+    const editctl = document.getElementById('editctl');
+    btn.classList.toggle('active', editMode);
+    editctl.classList.toggle('show', editMode);
+    if(editMode){
+      editTool = 'move';
+      selectedIds.clear();
+      marqueeRect = null;
+      tracePending = null;
+      updateToolButtons();
+    } else {
+      selectedIds.clear();
+      marqueeRect = null;
+      tracePending = null;
+    }
+    refreshEditButtons();
+    updateEditHint();
+    draw();
+  });
+  document.getElementById('zin').addEventListener('click', ()=>{ view.scale=Math.min(6,view.scale*1.25); draw(); });
+  document.getElementById('zout').addEventListener('click', ()=>{ view.scale=Math.max(0.005,view.scale/1.25); draw(); });
+  document.getElementById('zfit').addEventListener('click', ()=>{ fitView(); draw(); });
+
+  // ---- init --------------------------------------------------------
+  resizeCanvas();
+  buildPlant();
+})();
+</script>
+</body>
+</html>
