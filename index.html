@@ -2147,6 +2147,22 @@
     }catch(err){ toast('Datei ist kein gültiges Backup.'); }
   });
 
+  // Befunde aus der Auswertung (auswertung/karlstadt-marks.json) einmalig vorbelegen, wenn noch nichts markiert ist
+  async function seedMarks(){
+    if(!plant || plant.marks.size) return;
+    const KEY='pv-seeded-'+LAUDENBACH.layout;
+    try{ if(localStorage.getItem(KEY)) return; }catch(e){}
+    try{
+      const r = await fetch('auswertung/karlstadt-marks.json', {cache:'no-store'});
+      if(!r.ok) return;
+      const d = await r.json();
+      if(!d || d.app!=='pv-digitaler-zwilling' || !Array.isArray(d.marks) || d.layout!==LAUDENBACH.layout) return;
+      plant.marks = new Map(d.marks.map(([k,v])=>[String(k), +v]));
+      try{ localStorage.setItem(KEY,'1'); }catch(e){}
+      updateStats(); draw(); toast(d.marks.length+' Befunde aus der Auswertung geladen.');
+    }catch(err){ console.warn('Befunde nicht geladen', err); }
+  }
+
   // ---- init --------------------------------------------------------
   async function initProject(){
     document.getElementById('plantName').value = LAUDENBACH.name;
@@ -2161,6 +2177,7 @@
     }catch(err){ console.warn(err); }
     if(exists){ await loadPlant(); if(plant) plant.layout = LAUDENBACH.layout; }
     if(!plant || !plant.positions.length){ exists = false; loadLaudenbach(); }
+    await seedMarks();
     autosaveReady = true;
     if(!exists) savePlant(true);
     if(migrated) toast('Projekt auf Gestell-Layout aktualisiert (alte Markierungen verworfen).');
