@@ -2147,20 +2147,27 @@
     }catch(err){ toast('Datei ist kein gültiges Backup.'); }
   });
 
-  // Befunde aus der Auswertung (auswertung/karlstadt-marks.json) einmalig vorbelegen, wenn noch nichts markiert ist
+  // Befunde aus der Auswertung (auswertung/karlstadt-marks.json) vorbelegen: beim ersten Start und bei jeder neuen Version der Datei.
+  // Neue Markierungen werden ergänzt, vorhandene bleiben unverändert. Liefert true, wenn etwas ergänzt wurde.
   async function seedMarks(){
-    if(!plant || plant.marks.size) return;
+    if(!plant) return false;
     const KEY='pv-seeded-'+LAUDENBACH.layout;
-    try{ if(localStorage.getItem(KEY)) return; }catch(e){}
+    let stored=null;
+    try{ stored=localStorage.getItem(KEY); }catch(e){}
     try{
       const r = await fetch('auswertung/karlstadt-marks.json', {cache:'no-store'});
-      if(!r.ok) return;
+      if(!r.ok) return false;
       const d = await r.json();
-      if(!d || d.app!=='pv-digitaler-zwilling' || !Array.isArray(d.marks) || d.layout!==LAUDENBACH.layout) return;
-      plant.marks = new Map(d.marks.map(([k,v])=>[String(k), +v]));
-      try{ localStorage.setItem(KEY,'1'); }catch(e){}
-      updateStats(); draw(); toast(d.marks.length+' Befunde aus der Auswertung geladen.');
-    }catch(err){ console.warn('Befunde nicht geladen', err); }
+      if(!d || d.app!=='pv-digitaler-zwilling' || !Array.isArray(d.marks) || d.layout!==LAUDENBACH.layout) return false;
+      const rev = String(d.rev||'1');
+      if(stored===rev) return false;
+      let added=0;
+      for(const [k,v] of d.marks){ const key=String(k); if(!plant.marks.has(key)){ plant.marks.set(key, +v); added++; } }
+      try{ localStorage.setItem(KEY,rev); }catch(e){}
+      if(!added) return false;
+      updateStats(); draw(); toast(added+' Befunde aus der Auswertung geladen.');
+      return true;
+    }catch(err){ console.warn('Befunde nicht geladen', err); return false; }
   }
 
   // ---- init --------------------------------------------------------
@@ -2177,9 +2184,9 @@
     }catch(err){ console.warn(err); }
     if(exists){ await loadPlant(); if(plant) plant.layout = LAUDENBACH.layout; }
     if(!plant || !plant.positions.length){ exists = false; loadLaudenbach(); }
-    await seedMarks();
+    const seeded = await seedMarks();
     autosaveReady = true;
-    if(!exists) savePlant(true);
+    if(!exists || seeded) savePlant(true);
     if(migrated) toast('Projekt auf Gestell-Layout aktualisiert (alte Markierungen verworfen).');
   }
   resizeCanvas();
